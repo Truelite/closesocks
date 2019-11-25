@@ -6,7 +6,8 @@ them.
 It generates [ss](https://linux.die.net/man/8/ss) command lines to kill the
 processes. By default it shows them, and can also directly run them.
 
-```
+```text
+$ closesocks --help
 usage: closesocks [-h] [--verbose] [--debug] [--pid pid] [--idle seconds]
                   [--force]
 
