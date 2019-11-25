@@ -1,0 +1,101 @@
+#!/usr/bin/python3
+
+import logging
+import argparse
+import sys
+import os
+import time
+import shlex
+import subprocess
+
+log = logging.getLogger()
+
+
+def decode_pair(val):
+    host, port = val.split(":")
+    port = int(port, base=16)
+    shost = "{}.{}.{}.{}".format(
+            int(host[6:8], base=16),
+            int(host[4:6], base=16),
+            int(host[2:4], base=16),
+            int(host[:2], base=16),
+        )
+    return shost, port
+
+
+def read_sockets(dev):
+    # Read information for all sockets
+    by_inode = {}
+    with open(dev, "rt") as fd:
+        for line in fd:
+            fields = line.split()
+            # print(fields)
+            if fields[0] == "sl":
+                continue
+            lhost, lport = decode_pair(fields[1])
+            rhost, rport = decode_pair(fields[2])
+            inode = int(fields[9])
+            by_inode[inode] = (lhost, lport, rhost, rport)
+    return by_inode
+
+
+def main():
+    parser = argparse.ArgumentParser(description="List idle open sockets, and optionally close them")
+    parser.add_argument("--verbose", "-v", action="store_true", help="verbose output")
+    parser.add_argument("--debug", action="store_true", help="debug output")
+    parser.add_argument("--pid", "-p", metavar="pid", action="store", type=int, help="pid to list")
+    parser.add_argument("--idle", metavar="seconds", action="store", type=int, default=3600,
+                        help="select connections idle for more than this amount of seconds (default: 3600)")
+    parser.add_argument("--force", "-f", action="store_true", help="run the commands instead of listing them")
+
+    args = parser.parse_args()
+
+    # Setup logging
+    FORMAT = "%(asctime)-15s %(levelname)s %(message)s"
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stderr, format=FORMAT)
+    elif args.verbose:
+        logging.basicConfig(level=logging.INFO, stream=sys.stderr, format=FORMAT)
+    else:
+        logging.basicConfig(level=logging.WARN, stream=sys.stderr, format=FORMAT)
+
+    udp_by_inode = read_sockets("/proc/net/udp")
+    tcp_by_inode = read_sockets("/proc/net/tcp")
+
+    # Read open sockets for the given pid
+    fd_dir = "/proc/{}/fd".format(args.pid)
+    for fn in os.listdir(fd_dir):
+        dest = os.readlink(os.path.join(fd_dir, fn))
+        if not dest.startswith("socket:"):
+            continue
+        inode = int(dest[8:-1])
+
+        val = udp_by_inode.get(inode)
+        if val is not None:
+            # print(fn, inode, "udp", val)
+            pass
+        else:
+            val = tcp_by_inode.get(inode)
+            if val is not None:
+                # print(fn, inode, "tcp", val)
+                st = os.lstat(os.path.join(fd_dir, fn))
+                now = time.time()
+                idle = now - st.st_atime
+                # print("  atime {} mtime {} ctime {}".format(
+                #     now - st.st_atime, now - st.st_mtime, now - st.st_ctime))
+
+                if idle > args.idle:
+                    lhost, lport, rhost, rport = val
+
+                    cmd = ["ss", "-i", "state", "established", "src", lhost, "dst", rhost,
+                           "( sport = :{} and dport = :{} )".format(lport, rport)]
+                    if not args.force:
+                        print(" ".join(shlex.quote(c) for c in cmd), "# idle: {:.2f}s".format(idle))
+                    else:
+                        subprocess.run(cmd, check=True)
+            # else:
+            #     print(fn, inode, "?")
+
+
+if __name__ == "__main__":
+    main()
