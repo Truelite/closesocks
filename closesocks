@@ -12,6 +12,9 @@ log = logging.getLogger()
 
 
 def decode_pair(val):
+    """
+    Decode a hexadecimal address pair
+    """
     host, port = val.split(":")
     port = int(port, base=16)
     shost = "{}.{}.{}.{}".format(
@@ -24,7 +27,9 @@ def decode_pair(val):
 
 
 def read_sockets(dev):
-    # Read information for all sockets
+    """
+    Read information for all sockets in /proc/net/(tcp|udp)
+    """
     by_inode = {}
     with open(dev, "rt") as fd:
         for line in fd:
@@ -65,16 +70,17 @@ def main():
     # Read open sockets for the given pid
     fd_dir = "/proc/{}/fd".format(args.pid)
     for fn in os.listdir(fd_dir):
-        dest = os.readlink(os.path.join(fd_dir, fn))
-        if not dest.startswith("socket:"):
-            continue
-        inode = int(dest[8:-1])
+        try:
+            dest = os.readlink(os.path.join(fd_dir, fn))
+            if not dest.startswith("socket:"):
+                continue
+            inode = int(dest[8:-1])
 
-        val = udp_by_inode.get(inode)
-        if val is not None:
-            # print(fn, inode, "udp", val)
-            pass
-        else:
+            val = udp_by_inode.get(inode)
+            if val is not None:
+                # print(fn, inode, "udp", val)
+                continue
+
             val = tcp_by_inode.get(inode)
             if val is not None:
                 # print(fn, inode, "tcp", val)
@@ -95,6 +101,9 @@ def main():
                         subprocess.run(cmd, check=True)
             # else:
             #     print(fn, inode, "?")
+        except FileNotFoundError:
+            # Deal with sockets closed while we were iterating
+            pass
 
 
 if __name__ == "__main__":
