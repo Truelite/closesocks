@@ -3,7 +3,7 @@
 A simple script to list idle open sockets for a process, and optionally close
 them.
 
-It generate [ss](https://linux.die.net/man/8/ss) command lines to kill the
+It generates [ss](https://linux.die.net/man/8/ss) command lines to kill the
 processes. By default it shows them, and can also directly run them.
 
 ```
