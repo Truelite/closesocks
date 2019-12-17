@@ -93,12 +93,12 @@ def main():
                 if idle > args.idle:
                     lhost, lport, rhost, rport = val
 
-                    cmd = ["ss", "-i", "state", "established", "src", lhost, "dst", rhost,
+                    cmd = ["ss", "-K", "-i", "state", "established", "src", lhost, "dst", rhost,
                            "( sport = :{} and dport = :{} )".format(lport, rport)]
                     if not args.force:
                         print(" ".join(shlex.quote(c) for c in cmd), "# idle: {:.2f}s".format(idle))
                     else:
-                        subprocess.run(cmd, check=True)
+                        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
             # else:
             #     print(fn, inode, "?")
         except FileNotFoundError:
